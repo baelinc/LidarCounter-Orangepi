@@ -2,285 +2,272 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>ShowMon Config</title>
+<title>Lidar Counter - Config</title>
 <style>
-body { background:#111; font-family:Arial,sans-serif; color:#eee; margin:25px; }
-h1 { text-align:center; margin-bottom:10px; }
-.card {
-  background:#222; padding:18px; border-radius:10px;
-  margin-bottom:20px; box-shadow:0 3px 10px rgba(0,0,0,0.4);
-}
-label { display:block; margin:6px 0 2px 0; font-size:14px; }
-input[type=text], input[type=number], input[type=password] {
-  width:100%; max-width:320px;
-  padding:6px 8px; border-radius:4px; border:1px solid #555;
-  background:#111; color:#eee; box-sizing:border-box;
-}
-input[type=checkbox] { transform:scale(1.1); margin-right:6px; }
-button {
-  padding:10px 20px; font-size:15px; margin:5px;
-  border:none; border-radius:6px; cursor:pointer;
-}
-button.blue { background:#007bff; color:#fff; }
-button.red { background:#c00000; color:white; }
-button.gray { background:#555; color:#fff; }
-.smallNote { font-size:12px; color:#aaa; }
-.grid2 {
-  display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap:20px;
-}
-@media (max-width:900px) {
-  .grid2 { grid-template-columns:1fr; }
-}
+    body { background:#111; font-family:Arial,sans-serif; color:#eee; margin:25px; }
+    h1 { text-align:center; margin-bottom:10px; }
+    .card {
+        background:#222; padding:18px; border-radius:10px;
+        margin-bottom:20px; box-shadow:0 3px 10px rgba(0,0,0,0.4);
+    }
+    label { display:block; margin:6px 0 2px 0; font-size:14px; }
+    input[type=text], input[type=number], input[type=password] {
+        width:100%; max-width:320px;
+        padding:6px 8px; border-radius:4px; border:1px solid #555;
+        background:#111; color:#eee; box-sizing:border-box;
+    }
+    input[type=checkbox] { transform:scale(1.1); margin-right:6px; }
+    button {
+        padding:10px 20px; font-size:15px; margin:5px;
+        border:none; border-radius:6px; cursor:pointer;
+        transition: opacity 0.2s;
+    }
+    button:hover { opacity: 0.8; }
+    button.blue { background:#007bff; color:#fff; }
+    button.red { background:#c00000; color:white; }
+    button.gray { background:#555; color:#fff; }
+    .smallNote { font-size:12px; color:#aaa; margin-top: 5px; }
+    .grid2 {
+        display:grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap:20px;
+    }
+    @media (max-width:900px) {
+        .grid2 { grid-template-columns:1fr; }
+    }
 </style>
 </head>
 <body>
 
-<h1 class="center">
-  Lidar Car Counter - Configuration </h1>
+<h1>Lidar Counter - Configuration</h1>
 
 <div style="text-align:center; margin-bottom:15px;">
-  <button class="gray" onclick="location.href='/'">Back to Dashboard</button>
-  <button class="gray" onclick="location.href='/schedule'">Schedule Editor</button>
+    <button class="gray" onclick="location.href='/'">Back to Dashboard</button>
+    <button class="gray" onclick="location.href='/schedule'">Schedule Editor</button>
 </div>
 
 <form id="cfgForm" onsubmit="saveConfig(event)">
 
-  <div class="grid2">
-    <div>
-      <div class="card">
-        <h2>Core</h2>
-        <label>Serial Port</label>
-        <input type="text" id="serial_port">
+    <div class="grid2">
+        <div>
+            <div class="card">
+                <h2>Core Hardware</h2>
+                <label>Serial Port (Orange Pi UART5)</label>
+                <input type="text" id="serial_port" placeholder="/dev/ttyS5">
 
-        <label>Baudrate</label>
-        <input type="number" id="baudrate">
+                <label>Baudrate</label>
+                <input type="number" id="baudrate">
 
-        <label>Database File</label>
-        <input type="text" id="database">
-        <div class="smallNote">
-          Changing DB name will take effect on next restart.
+                <label>Database File</label>
+                <input type="text" id="database">
+                <div class="smallNote">Path: /root/LidarCounter-Orangepi/cars.db</div>
+            </div>
+
+            <div class="card">
+                <h2>Web Server (HTTP)</h2>
+                <label>Port</label>
+                <input type="number" id="http_port">
+                <div class="smallNote">Standard is port 80. Changes require a service restart.</div>
+            </div>
+
+            <div class="card">
+                <h2>System Update (GitHub)</h2>
+                <label>Repository URL</label>
+                <input type="text" id="repo_url">
+                
+                <label>Branch</label>
+                <input type="text" id="repo_branch">
+                
+                <div style="margin-top:15px;">
+                    <button type="button" class="red" onclick="performSystemUpdate()">Pull Update & Restart</button>
+                </div>
+                <div class="smallNote">This force-syncs the Orange Pi with your GitHub main branch.</div>
+            </div>
         </div>
-      </div>
 
-      <div class="card">
-        <h2>HTTP</h2>
-        <label>Port</label>
-        <input type="number" id="http_port">
-        <div class="smallNote">
-          Port changes require a restart.
+        <div>
+            <div class="card">
+                <h2>MQTT Integration</h2>
+                <label>Broker Address</label>
+                <input type="text" id="mqtt_broker">
+
+                <label>Port</label>
+                <input type="number" id="mqtt_port">
+
+                <label>Topic</label>
+                <input type="text" id="mqtt_topic">
+
+                <label>Username</label>
+                <input type="text" id="mqtt_username">
+
+                <label>Password</label>
+                <input type="password" id="mqtt_password">
+            </div>
+
+            <div class="card">
+                <h2>Detection Logic</h2>
+                <label>Debounce (ms)</label>
+                <input type="number" id="det_debounce">
+
+                <label style="margin-top:10px;">
+                    <input type="checkbox" id="det_test_mode"> Start in Test Mode
+                </label>
+
+                <label>Minimum Strength (Lidar Signal)</label>
+                <input type="number" id="det_min_strength">
+            </div>
+
+            <div class="card">
+                <h2>Remote Scheduling</h2>
+                <label>Schedule JSON URL</label>
+                <input type="text" id="sch_url">
+
+                <label>Check Interval (seconds)</label>
+                <input type="number" id="sch_interval">
+
+                <label>GitHub Token (for private repos)</label>
+                <input type="password" id="sch_token">
+            </div>
         </div>
-      </div>
-
-      <div class="card">
-        <h2>Software Updates (GitHub)</h2>
-          <label for="repo_url" class="form-label">Public Repository URL</label>
-          <input type="text" class="form-control" id="repo_url" value="https://github.com/baelinc/LidarCounter.git">
-          <label for="repo_branch" class="form-label">Branch</label>
-          <input type="text" class="form-control" id="repo_branch" value="main">
-          <button class="red" onclick="performSystemUpdate()">Update System Code</button>
-      </div>
     </div>
 
-    <div>
-      <div class="card">
-        <h2>MQTT</h2>
-        <label>Broker</label>
-        <input type="text" id="mqtt_broker">
-
-        <label>Port</label>
-        <input type="number" id="mqtt_port">
-
-        <label>Topic</label>
-        <input type="text" id="mqtt_topic">
-
-        <label>Username</label>
-        <input type="text" id="mqtt_username">
-
-        <label>Password</label>
-        <input type="password" id="mqtt_password">
-
-        <div class="smallNote">
-          Changes apply on next restart (existing client is not reconnected live).
-        </div>
-      </div>
-
-      <div class="card">
-        <h2>Detection</h2>
-        <label>Debounce (ms)</label>
-        <input type="number" id="det_debounce">
-
-        <label>Ignore Zero Distance</label>
-        <label>
-          <input type="checkbox" id="det_ignore_zero"> Enabled
-        </label>
-
-        <label>Minimum Strength</label>
-        <input type="number" id="det_min_strength">
-
-        <label>Test Mode (default on boot)</label>
-        <label>
-          <input type="checkbox" id="det_test_mode"> Start in Test Mode
-        </label>
-      </div>
-
-      <div class="card">
-        <h2>Schedule (Remote)</h2>
-        <label>Schedule URL</label>
-        <input type="text" id="sch_url">
-
-        <label>Check Interval (sec)</label>
-        <input type="number" id="sch_interval">
-
-        <label>GitHub Token</label>
-        <input type="password" id="sch_token">
-
-        <div class="smallNote">
-          The URL is used by the backend to periodically pull a schedule.
-          The local schedule editor (/schedule) reads and writes <code>schedule.json</code> on the Pi.
-        </div>
-      </div>
+    <div style="text-align:center; margin-bottom:30px;">
+        <button class="blue" type="submit">Save Changes</button>
+        <button class="red" type="button" onclick="saveAndRestart()">Save & Restart Service</button>
     </div>
-  </div>
-
-  <div style="text-align:center; margin-bottom:30px;">
-    <button class="blue" type="submit">Save Config</button>
-    <button class="red" type="button" onclick="saveAndRestart()">
-      Save & Restart
-    </button>
-  </div>
 </form>
 
 <script>
 async function loadConfig() {
-  try {
-    const r = await fetch("/api/config");
-    const cfg = await r.json();
+    try {
+        const r = await fetch("/api/config");
+        const cfg = await r.json();
 
-    document.getElementById("serial_port").value = cfg.serial_port ?? "";
-    document.getElementById("baudrate").value = cfg.baudrate ?? 115200;
-    document.getElementById("database").value = cfg.database ?? "cars.db";
+        // Core
+        document.getElementById("serial_port").value = cfg.serial_port || "/dev/ttyS5";
+        document.getElementById("baudrate").value = cfg.baudrate || 115200;
+        document.getElementById("database").value = cfg.database || "cars.db";
 
-    const http = cfg.http || {};
-    document.getElementById("http_port").value = http.port ?? 80;
+        // HTTP
+        const http = cfg.http || {};
+        document.getElementById("http_port").value = http.port || 80;
 
-    const m = cfg.mqtt || {};
-    document.getElementById("mqtt_broker").value = m.broker ?? "";
-    document.getElementById("mqtt_port").value = m.port ?? 1883;
-    document.getElementById("mqtt_topic").value = m.topic ?? "";
-    document.getElementById("mqtt_username").value = m.username ?? "";
-    document.getElementById("mqtt_password").value = m.password ?? "";
+        // System Update
+        const u = cfg.system_update || {};
+        document.getElementById("repo_url").value = u.repo_url || "";
+        document.getElementById("repo_branch").value = u.branch || "main";
 
-    const d = cfg.detection || {};
-    document.getElementById("det_debounce").value = d.debounce_ms ?? 200;
-    document.getElementById("det_ignore_zero").checked = !!d.ignore_zero_distance;
-    document.getElementById("det_min_strength").value = d.min_strength ?? 0;
-    document.getElementById("det_test_mode").checked = !!d.test_mode;
+        // MQTT
+        const m = cfg.mqtt || {};
+        document.getElementById("mqtt_broker").value = m.broker || "localhost";
+        document.getElementById("mqtt_port").value = m.port || 1883;
+        document.getElementById("mqtt_topic").value = m.topic || "carcount/car_detect";
+        document.getElementById("mqtt_username").value = m.username || "";
+        document.getElementById("mqtt_password").value = m.password || "";
 
-    const s = cfg.schedule || {};
-    document.getElementById("sch_url").value = s.url ?? "";
-    document.getElementById("sch_interval").value = s.check_interval_sec ?? 1200;
-    document.getElementById("sch_token").value = s.github_token ?? "";
+        // Detection
+        const d = cfg.detection || {};
+        document.getElementById("det_debounce").value = d.debounce_ms || 200;
+        document.getElementById("det_min_strength").value = d.min_strength || 100;
+        document.getElementById("det_test_mode").checked = !!d.test_mode;
 
-  } catch(e) {
-    console.log("loadConfig error", e);
-    alert("Failed to load config.");
-  }
+        // Schedule
+        const s = cfg.schedule || {};
+        document.getElementById("sch_url").value = s.url || "";
+        document.getElementById("sch_interval").value = s.check_interval_sec || 1200;
+        document.getElementById("sch_token").value = s.github_token || "";
+
+    } catch(e) {
+        console.error("loadConfig error", e);
+        alert("Critical: Failed to load configuration from Orange Pi.");
+    }
 }
 
 async function saveConfig(ev) {
-  ev.preventDefault();
+    if (ev) ev.preventDefault();
 
-  const payload = {
-    serial_port: document.getElementById("serial_port").value,
-    baudrate: parseInt(document.getElementById("baudrate").value || "115200", 10),
-    database: document.getElementById("database").value,
+    const payload = {
+        serial_port: document.getElementById("serial_port").value,
+        baudrate: parseInt(document.getElementById("baudrate").value),
+        database: document.getElementById("database").value,
+        http: {
+            port: parseInt(document.getElementById("http_port").value)
+        },
+        system_update: {
+            repo_url: document.getElementById("repo_url").value,
+            branch: document.getElementById("repo_branch").value,
+            local_path: "/root/LidarCounter-Orangepi",
+            service_name: "LidarCounter.service"
+        },
+        mqtt: {
+            broker: document.getElementById("mqtt_broker").value,
+            port: parseInt(document.getElementById("mqtt_port").value),
+            topic: document.getElementById("mqtt_topic").value,
+            username: document.getElementById("mqtt_username").value,
+            password: document.getElementById("mqtt_password").value
+        },
+        detection: {
+            debounce_ms: parseInt(document.getElementById("det_debounce").value),
+            min_strength: parseInt(document.getElementById("det_min_strength").value),
+            test_mode: document.getElementById("det_test_mode").checked
+        },
+        schedule: {
+            url: document.getElementById("sch_url").value,
+            check_interval_sec: parseInt(document.getElementById("sch_interval").value),
+            github_token: document.getElementById("sch_token").value
+        }
+    };
 
-    http: {
-      port: parseInt(document.getElementById("http_port").value || "80", 10)
-    },
-
-    mqtt: {
-      broker: document.getElementById("mqtt_broker").value,
-      port: parseInt(document.getElementById("mqtt_port").value || "1883", 10),
-      topic: document.getElementById("mqtt_topic").value,
-      username: document.getElementById("mqtt_username").value,
-      password: document.getElementById("mqtt_password").value
-    },
-
-    detection: {
-      debounce_ms: parseInt(document.getElementById("det_debounce").value || "200", 10),
-      ignore_zero_distance: document.getElementById("det_ignore_zero").checked,
-      min_strength: parseInt(document.getElementById("det_min_strength").value || "0", 10),
-      test_mode: document.getElementById("det_test_mode").checked
-    },
-
-    schedule: {
-      url: document.getElementById("sch_url").value,
-      check_interval_sec: parseInt(document.getElementById("sch_interval").value || "1200", 10),
-      github_token: document.getElementById("sch_token").value
+    try {
+        const r = await fetch("/api/config", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload)
+        });
+        const j = await r.json();
+        if (j.status === "success" || j.ok) {
+            alert("Configuration saved successfully.");
+            return true;
+        } else {
+            alert("Save failed: " + (j.message || "Unknown error"));
+            return false;
+        }
+    } catch(e) {
+        alert("Error: Could not reach the server to save settings.");
+        return false;
     }
-  };
-
-  try {
-    const r = await fetch("/api/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-    const j = await r.json();
-    if (!j.ok) {
-      alert("Error saving config: " + (j.error || "Unknown error"));
-      return;
-    }
-    alert("Config saved. Some changes apply only after restart.");
-  } catch(e) {
-    console.log("saveConfig error", e);
-    alert("Failed to save config.");
-  }
 }
 
 async function saveAndRestart() {
-  if (!confirm(
-    "This will restart the application.\n\n" +
-    "The dashboard will disconnect briefly.\n\n" +
-    "Continue?"
-  )) return;
+    if (!confirm("Save settings and restart the Lidar service?")) return;
 
-  // First save config
-  const ev = { preventDefault(){} };
-  await saveConfig(ev);
+    const saved = await saveConfig();
+    if (!saved) return;
 
-  // Restart service
-  try {
-    await fetch("/api/service/restart", { method: "POST" });
-    alert("Service restarting. Please wait 10–15 seconds.");
-    setTimeout(() => location.href = "/", 12000);
-  } catch (e) {
-    alert("Failed to restart service.");
-  }
+    try {
+        await fetch("/api/service/restart", { method: "POST" });
+        alert("Restarting... Page will reload in 10 seconds.");
+        setTimeout(() => location.href = "/", 10000);
+    } catch (e) {
+        alert("Service restart command sent. Please refresh manually.");
+    }
 }
 
-loadConfig();
-
 function performSystemUpdate() {
-    if(confirm("This will overwrite local code and restart the services. Continue?")) {
+    if(confirm("DANGER: This will overwrite local changes with the GitHub version and restart the system. Proceed?")) {
         fetch('/run_update', { method: 'POST' })
             .then(response => {
-                alert("Update signal sent! The system is restarting. Please wait 10 seconds and refresh.");
-                setTimeout(() => { location.reload(); }, 10000); // Wait for restart
+                alert("Update initiated. Please wait 15 seconds for the system to rebuild and restart.");
+                setTimeout(() => { location.reload(); }, 15000);
             })
             .catch(err => {
-                // Ignore 'Failed to fetch' because the server is restarting
-                if (err.message.includes('fetch')) {
-                    alert("Update in progress. Restarting services...");
-                    setTimeout(() => { location.reload(); }, 10000);
-                } else {
-                    alert("Update Error: " + err);
-                }
+                alert("Update triggered. Refreshing shortly...");
+                setTimeout(() => { location.reload(); }, 12000);
             });
     }
 }
+
+// Initial Load
+loadConfig();
 </script>
 
 </body>
