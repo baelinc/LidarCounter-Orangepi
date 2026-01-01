@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>ShowMon Lidar Car Counter</title>
+<style>
+body { background:black; font-family:Arial, sans-serif; color:white; margin:25px; }
+.center { text-align:center; }
+.logo {
+  display:block; margin:0 auto 10px auto; max-width:320px;
+}
+.card {
+  background:#222; padding:18px; border-radius:10px;
+  margin-bottom:20px; box-shadow:0 3px 10px rgba(0,0,0,0.4);
+}
+.valueBox {
+  background:#eee; color:black; padding:8px 14px;
+  border-radius:6px; font-size:20px; display:inline-block; min-width:90px;
+}
+.led {
+  display:inline-block; width:14px; height:14px; border-radius:50%;
+  margin-left:8px; background:#660000;
+}
+.led.green { background:#00c000; }
+button {
+  padding:10px 20px; font-size:15px; margin:5px;
+  border:none; border-radius:6px; cursor:pointer;
+}
+button.blue { background:#007bff; color:white; }
+button.red { background:#c00000; color:white; }
+button.gray { background:#555; color:white; }
+h1 { margin-bottom:5px; }
+h2 { margin-top:0; }
+.layout {
+  display:grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.1fr);
+  gap:20px;
+}
+@media (max-width:900px) {
+  .layout { grid-template-columns: 1fr; }
+}
+.statRow { margin:6px 0; }
+.statLabel { display:inline-block; width:180px; }
+canvas {   width: 95%;
+  max-height: 360px;
+  background:#111;
+  border-radius:8px;
+  text-align:center;
+
+  padding:10px;}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+    // Update the clock every second
+    function updatePiClock() {
+        fetch('/get_time')
+            .then(response => response.json())
+            .then(data => {
+                const clockElement = document.getElementById('pi-clock');
+                if (clockElement) {
+                    clockElement.innerText = data.time;
+                }
+            })
+            .catch(err => console.error("Clock error:", err));
+    }
+    
+    // Start the interval
+    setInterval(updatePiClock, 1000);
+    // Also run it immediately so we don't wait 1 second for the first update
+    updatePiClock();
+
+    // Logic for the Sync Button
+    function syncTime() {
+        const btn = document.getElementById('sync-btn');
+        if (!btn) return;
+        
+        btn.disabled = true;
+        btn.innerText = "Syncing...";
+
+        fetch('/sync_time', { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                alert(data.message);
+                btn.disabled = false;
+                btn.innerText = "Sync Time with Google";
+            })
+            .catch(error => {
+                alert("Error: " + error);
+                btn.disabled = false;
+                btn.innerText = "Sync Time with Google";
+            });
+    }
+</script>
+</head>
+
+<body>
+
+<h1 class="center">
+  Lidar Car Counter</h1>
+
+<!-- FULL-WIDTH CHART -->
+<div class="card full-width">
+  <h2>Today's Traffic</h2>
+  <p align="center">
+  <canvas id="hourChart"></canvas>
+  </p>
+</div>
+
+<div class="layout">
+  <!-- LEFT COLUMN -->
+  <div>
+    <div class="card">
+      <h2>Live Sensor</h2>
+      <div class="statRow">
+        Distance:
+        <span id="dist" class="valueBox">--</span> mm
+      </div>
+      <div class="statRow">
+        Strength:
+        <span id="str" class="valueBox">--</span>
+      </div>
+      <div class="statRow">
+        Car Present:
+        <span id="present" class="valueBox">--</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Schedule Status</h2>
+      <div class="statRow">
+        Schedule Valid:
+        <span id="schedValidLED" class="led"></span>
+      </div>
+      <div class="statRow">
+        Schedule Active:
+        <span id="schedActiveLED" class="led"></span>
+      </div>
+      <div class="statRow">
+        Last Fetch:
+        <span id="schedFetch" class="valueBox">--</span>
+      </div>
+      <div class="statRow">
+        Status:
+        <span id="schedStatus" class="valueBox" style="max-width:260px;"></span>
+      </div>
+      <div class="statRow">
+        <p><strong>Pi System Time:</strong> <span id="pi-clock">Loading...</span></p>
+        <button id="sync-btn" class="btn btn-sm btn-info" onclick="syncTime()">
+            Sync Time with Google
+        </button>
+      </div>
+      <div style="margin-top:10px;">
+        <button class="blue" onclick="refreshSchedule()">Refresh Schedule</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN -->
+  <div>
+    <div class="card">
+      <h2>Counts</h2>
+      <div class="statRow">
+        <span class="statLabel">Today:</span>
+        <span id="cntToday" class="valueBox">--</span>
+      </div>
+      <div class="statRow">
+        <span class="statLabel">Yesterday:</span>
+        <span id="cntYesterday" class="valueBox">--</span>
+      </div>
+      <div class="statRow">
+        <span class="statLabel">Last 7 Days:</span>
+        <span id="cntWeek" class="valueBox">--</span>
+      </div>
+      <div class="statRow">
+        <span class="statLabel">All Time:</span>
+        <span id="cntTotal" class="valueBox">--</span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Operating Mode</h2>
+
+      <div class="statRow">
+        Test Mode:
+        <span id="modeTest" class="valueBox">--</span>
+      </div>
+
+      <div class="statRow">
+        Manual Override:
+        <span id="modeOverride" class="valueBox">--</span>
+      </div>
+
+      <div style="margin-top:12px;">
+        <button class="blue" onclick="toggleTestMode()">Toggle Test Mode</button>
+        <button class="red" onclick="toggleManualOverride()">Toggle Manual Override</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="center" style="margin-bottom:15px;">
+  <button class="blue" onclick="location.href='/config'">Config</button>
+  <button class="blue" onclick="location.href='/schedule'">Schedule</button><br><br><hr><br>
+  <h3>Data Export</h3><br>
+  <button class="blue" onclick="window.location.href='/download_db'">
+      Download RAW (.db)
+  </button>
+  
+  <button class="blue" onclick="window.location.href='/download_csv'">
+      Export to Excel (CSV)
+  </button>
+  
+  <button class="red" onclick="clearData()">
+      Clear All Data
+  </button>
+</div>
+<script>
+let hourChart = null;
+
+let currentMode = {
+  test_mode: false,
+  manual_override: false
+};
+
+async function loadStatus() {
+  try {
+    const r = await fetch("/api/status");
+    const j = await r.json();
+
+    document.getElementById("dist").textContent =
+      j.last_distance_mm ?? "--";
+    document.getElementById("str").textContent =
+      j.last_strength ?? "--";
+    document.getElementById("present").textContent =
+      j.car_present ? "YES" : "NO";
+
+    const validLED = document.getElementById("schedValidLED");
+    const activeLED = document.getElementById("schedActiveLED");
+
+    validLED.classList.toggle("green", !!j.schedule_valid);
+    activeLED.classList.toggle("green", !!j.schedule_active);
+
+    document.getElementById("schedFetch").textContent =
+      j.schedule_last_fetch_utc ?? "--";
+    document.getElementById("schedStatus").textContent =
+      j.schedule_last_status ?? "--";
+
+  } catch(e) {
+    console.log("status error", e);
+  }
+}
+
+async function loadMode() {
+  try {
+    const r = await fetch("/api/mode");
+    const j = await r.json();
+
+    currentMode.test_mode = !!j.test_mode;
+    currentMode.manual_override = !!j.manual_override;
+
+    document.getElementById("modeTest").textContent =
+      currentMode.test_mode ? "ENABLED" : "OFF";
+
+    document.getElementById("modeOverride").textContent =
+      currentMode.manual_override ? "ENABLED" : "OFF";
+  } catch (e) {
+    console.log("mode load error", e);
+  }
+}
+
+async function toggleTestMode() {
+  try {
+    await fetch("/api/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        test_mode: !currentMode.test_mode
+      })
+    });
+    loadMode();
+  } catch (e) {
+    console.log("toggle test mode error", e);
+  }
+}
+
+async function toggleManualOverride() {
+  try {
+    await fetch("/api/mode", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        manual_override: !currentMode.manual_override
+      })
+    });
+    loadMode();
+  } catch (e) {
+    console.log("toggle manual override error", e);
+  }
+}
+
+async function loadStats() {
+  try {
+    const r = await fetch("/api/stats");
+    const j = await r.json();
+
+    document.getElementById("cntToday").textContent =
+      j.current_count ?? "--";
+    document.getElementById("cntYesterday").textContent =
+      j.yesterday_count ?? "--";
+    document.getElementById("cntWeek").textContent =
+      j.week_count ?? "--";
+    document.getElementById("cntTotal").textContent =
+      j.total_all_time ?? "--";
+  } catch(e) {
+    console.log("stats error", e);
+  }
+}
+
+async function loadHourly() {
+  try {
+    const r = await fetch("/api/stats/hourly");
+    const j = await r.json();
+
+    const labels = (j.hours || []).map(h => `${h}:00`);
+    const data = j.counts || [];
+
+    const ctx = document.getElementById("hourChart").getContext("2d");
+
+    if (!hourChart) {
+      hourChart = new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: labels,
+          datasets: [{
+            label: "Cars per Hour",
+            data: data
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            x: {
+              title: { display: true, text: "Hour (local)" }
+            },
+            y: {
+              beginAtZero: true,
+              title: { display: true, text: "Cars" },
+              ticks: {
+                precision: 0
+              }
+            }
+          }
+        }
+      });
+    } else {
+      hourChart.data.labels = labels;
+      hourChart.data.datasets[0].data = data;
+      hourChart.update();
+    }
+  } catch(e) {
+    console.log("hourly error", e);
+  }
+}
+
+async function refreshSchedule() {
+  try {
+    await fetch("/api/schedule/refresh", { method: "POST" });
+    loadStatus();
+  } catch(e) {
+    console.log("refresh schedule error", e);
+  }
+}
+
+function startLoops() {
+  loadStatus();
+  loadStats();
+  loadHourly();
+  loadMode();
+  setInterval(loadMode, 5000);
+  setInterval(loadStatus, 2000);      // live sensor
+  setInterval(loadStats, 10000);      // summary stats
+  setInterval(loadHourly, 60000);     // hourly chart
+}
+
+startLoops();
+
+function clearData() {
+    if(confirm("Are you sure you want to PERMANENTLY delete all car count data?")) {
+        fetch('/clear_db', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => alert(data.message));
+    }
+}
+</script>
+
+</body>
+</html>
