@@ -1,13 +1,13 @@
 [Unit]
-Description=ShowMon Lidar Car Counter
+Description=Lidar Car Counter
 After=network.target
 
 [Service]
 Type=simple
 
-# --- Absolute paths (do not change) ---
-WorkingDirectory=/home/admin/ShowMonLidarCounter
-ExecStart=/home/admin/ShowMonLidarCounter/venv/bin/python /home/admin/ShowMonLidarCounter/app.py
+# --- Updated paths for Orange Pi Zero 2 ---
+WorkingDirectory=/root/LidarCounter-Orangepi
+ExecStart=/root/LidarCounter-Orangepi/venv/bin/python /root/LidarCounter-Orangepi/app.py
 
 Restart=always
 RestartSec=5
@@ -16,9 +16,12 @@ RestartSec=5
 Environment=FLASK_ENV=production
 Environment=PYTHONUNBUFFERED=1
 
-# User permissions (required for UART)
-User=admin
-Group=admin
+# --- User permissions (Orange Pi default is root) ---
+User=root
+Group=root
+
+# Allow the process to bind to port 80
+AmbientCapabilities=CAP_NET_BIND_SERVICE
 
 [Install]
 WantedBy=multi-user.target
