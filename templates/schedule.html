@@ -2,190 +2,198 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>ShowMon Schedule Editor</title>
+<title>Lidar Counter - Schedule Editor</title>
 <style>
-body { background:#111; font-family:Arial,sans-serif; color:#eee; margin:25px; }
-h1 { text-align:center; margin-bottom:10px; }
-.card {
-  background:#222; padding:18px; border-radius:10px;
-  margin-bottom:20px; box-shadow:0 3px 10px rgba(0,0,0,0.4);
-}
-table {
-  width:100%; border-collapse:collapse; margin-top:10px;
-}
-th, td {
-  border:1px solid #444; padding:6px 8px; text-align:center;
-}
-th {
-  background:#333;
-}
-input[type=text] {
-  width:90px; padding:4px 6px;
-  border-radius:4px; border:1px solid #555;
-  background:#111; color:#eee;
-}
-input[type=checkbox] {
-  transform:scale(1.1);
-}
-button {
-  padding:8px 16px; font-size:14px; margin:5px;
-  border:none; border-radius:6px; cursor:pointer;
-}
-button.blue { background:#007bff; color:#fff; }
-button.gray { background:#555; color:#fff; }
-.smallNote { font-size:12px; color:#aaa; }
+    body { background:#111; font-family:Arial,sans-serif; color:#eee; margin:25px; }
+    h1 { text-align:center; margin-bottom:10px; }
+    .card {
+        background:#222; padding:18px; border-radius:10px;
+        margin-bottom:20px; box-shadow:0 3px 10px rgba(0,0,0,0.4);
+    }
+    table {
+        width:100%; border-collapse:collapse; margin-top:10px;
+    }
+    th, td {
+        border:1px solid #444; padding:8px 10px; text-align:center;
+    }
+    th { background:#333; color: #007bff; }
+    input[type=text] {
+        width:90px; padding:6px;
+        border-radius:4px; border:1px solid #555;
+        background:#111; color:#eee; text-align: center;
+    }
+    input[type=checkbox] { transform:scale(1.2); cursor: pointer; }
+    button {
+        padding:10px 20px; font-size:14px; margin:5px;
+        border:none; border-radius:6px; cursor:pointer;
+        transition: 0.2s;
+    }
+    button:hover { opacity: 0.8; }
+    button.blue { background:#007bff; color:#fff; }
+    button.gray { background:#555; color:#fff; }
+    .smallNote { font-size:12px; color:#aaa; margin-top: 10px; }
+    .current-day { background: #2d3d4d; font-weight: bold; color: #00ff00; }
 </style>
 </head>
 <body>
 
-<h1 class="center">
-  Lidar Car Counter - Schedule Editor</h1>
+<h1>Lidar Car Counter - Schedule Editor</h1>
 
 <div style="text-align:center; margin-bottom:15px;">
-  <button class="gray" onclick="location.href='/'">Back to Dashboard</button>
-  <button class="gray" onclick="location.href='/config'">Config</button>
+    <button class="gray" onclick="location.href='/'">Back to Dashboard</button>
+    <button class="gray" onclick="location.href='/config'">System Config</button>
 </div>
 
 <div class="card">
-  <h2>Daily Schedule</h2>
-  <div class="smallNote">
-    Times are local Pi time. Only <b>Enable</b>, <b>StartShow</b>, and <b>ShowStop</b> affect car counting.
-    Any additional fields from GitHub (e.g. TXStop, AM_Off) are ignored by the counter.
-  </div>
+    <h2>Weekly Operating Hours</h2>
+    <div class="smallNote">
+        Times must be in <b>24-hour format (HH:MM)</b>. The counter will only record data between StartShow and ShowStop if Enable is checked.
+    </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Day</th>
-        <th>Enable</th>
-        <th>StartShow (HH:MM)</th>
-        <th>ShowStop (HH:MM)</th>
-      </tr>
-    </thead>
-    <tbody id="schedBody">
-      <!-- rows filled by JS -->
-    </tbody>
-  </table>
+    <table>
+        <thead>
+            <tr>
+                <th>Day of Week</th>
+                <th>Enabled</th>
+                <th>Start (HH:MM)</th>
+                <th>Stop (HH:MM)</th>
+            </tr>
+        </thead>
+        <tbody id="schedBody">
+            </tbody>
+    </table>
 
-  <div style="margin-top:10px;">
-    <button class="blue" onclick="saveSchedule()">Save to Pi</button>
-    <button class="gray" onclick="loadLocal()">Reload from Pi</button>
-    <button class="gray" onclick="loadFromGitHub()">Pull from GitHub</button>
-  </div>
+    <div style="margin-top:20px; text-align: center;">
+        <button class="blue" onclick="saveSchedule()">Save to Orange Pi</button>
+        <button class="gray" onclick="loadLocal()">Reload Local</button>
+        <button class="gray" onclick="loadFromGitHub()">Pull from GitHub URL</button>
+    </div>
 </div>
 
 <script>
 const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+const currentDayIdx = new Date().getDay();
 
 function makeRow(idx, entry) {
-  const tr = document.createElement("tr");
+    const tr = document.createElement("tr");
+    if (idx === currentDayIdx) tr.className = "current-day";
 
-  const tdDay = document.createElement("td");
-  tdDay.textContent = dayNames[idx];
-  tr.appendChild(tdDay);
+    // Day Name
+    const tdDay = document.createElement("td");
+    tdDay.textContent = dayNames[idx] + (idx === currentDayIdx ? " (Today)" : "");
+    tr.appendChild(tdDay);
 
-  const tdEnable = document.createElement("td");
-  const cb = document.createElement("input");
-  cb.type = "checkbox";
-  cb.id = `enable_${idx}`;
-  cb.checked = !!entry.Enable;
-  tdEnable.appendChild(cb);
-  tr.appendChild(tdEnable);
+    // Enable Checkbox
+    const tdEnable = document.createElement("td");
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.id = `enable_${idx}`;
+    cb.checked = (entry.Enable === true || entry.Enable === "true");
+    tdEnable.appendChild(cb);
+    tr.appendChild(tdEnable);
 
-  const tdStart = document.createElement("td");
-  const inStart = document.createElement("input");
-  inStart.type = "text";
-  inStart.id = `start_${idx}`;
-  inStart.value = entry.StartShow || "16:30";
-  tdStart.appendChild(inStart);
-  tr.appendChild(tdStart);
+    // Start Time
+    const tdStart = document.createElement("td");
+    const inStart = document.createElement("input");
+    inStart.type = "text";
+    inStart.id = `start_${idx}`;
+    inStart.placeholder = "17:00";
+    inStart.value = entry.StartShow || "17:00";
+    tdStart.appendChild(inStart);
+    tr.appendChild(tdStart);
 
-  const tdStop = document.createElement("td");
-  const inStop = document.createElement("input");
-  inStop.type = "text";
-  inStop.id = `stop_${idx}`;
-  inStop.value = entry.ShowStop || "22:00";
-  tdStop.appendChild(inStop);
-  tr.appendChild(tdStop);
+    // Stop Time
+    const tdStop = document.createElement("td");
+    const inStop = document.createElement("input");
+    inStop.type = "text";
+    inStop.id = `stop_${idx}`;
+    inStop.placeholder = "22:00";
+    inStop.value = entry.ShowStop || "22:00";
+    tdStop.appendChild(inStop);
+    tr.appendChild(tdStop);
 
-  return tr;
+    return tr;
 }
 
 function populateTable(data) {
-  const body = document.getElementById("schedBody");
-  body.innerHTML = "";
-  for (let i = 0; i < 7; i++) {
-    const entry = data[i] || {};
-    body.appendChild(makeRow(i, entry));
-  }
+    const body = document.getElementById("schedBody");
+    body.innerHTML = "";
+    // Ensure we always show 7 days even if data is partial
+    for (let i = 0; i < 7; i++) {
+        const entry = data[i] || {};
+        body.appendChild(makeRow(i, entry));
+    }
 }
 
 async function loadLocal() {
-  try {
-    const r = await fetch("/api/schedule/local");
-    const data = await r.json();
-    populateTable(data);
-  } catch(e) {
-    console.log("loadLocal error", e);
-    alert("Failed to load schedule from Pi.");
-  }
+    try {
+        const r = await fetch("/api/schedule/local");
+        const data = await r.json();
+        // If the API returns an object with a 'schedule' key, use that, otherwise use data directly
+        const schedArray = Array.isArray(data) ? data : (data.schedule || []);
+        populateTable(schedArray);
+    } catch(e) {
+        console.error("loadLocal error", e);
+        alert("Error: Could not retrieve schedule from Orange Pi.");
+    }
 }
 
 async function loadFromGitHub() {
-  try {
-    const r = await fetch("/api/schedule/refresh", { method: "POST" });
-    const j = await r.json();
-    if (!j.ok) {
-      alert("Refresh from GitHub reported an error: " + (j.schedule_last_status || ""));
+    if(!confirm("Pull schedule from the Remote URL defined in Config? This will overwrite current table.")) return;
+    
+    try {
+        const r = await fetch("/api/schedule/refresh", { method: "POST" });
+        const j = await r.json();
+        if (j.status !== "success" && !j.ok) {
+            alert("GitHub Pull Failed: " + (j.message || "Check your URL/Token in Config."));
+        } else {
+            alert("Schedule synced from GitHub.");
+            await loadLocal();
+        }
+    } catch(e) {
+        alert("Network error while contacting GitHub API.");
     }
-    // After refresh, load in-memory/local view
-    await loadLocal();
-  } catch(e) {
-    console.log("loadFromGitHub error", e);
-    alert("Failed to refresh from GitHub.");
-  }
 }
 
 async function saveSchedule() {
-  const data = [];
-  for (let i = 0; i < 7; i++) {
-    const enable = document.getElementById(`enable_${i}`).checked;
-    const start = document.getElementById(`start_${i}`).value.trim();
-    const stop = document.getElementById(`stop_${i}`).value.trim();
+    const data = [];
+    const timeRegex = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-    // Very light validation: must match 00:00–23:59
-    const re = /^([01]\d|2[0-3]):[0-5]\d$/;
-    if (!re.test(start) || !re.test(stop)) {
-      alert(`Invalid time on ${dayNames[i]} (use HH:MM 24h).`);
-      return;
+    for (let i = 0; i < 7; i++) {
+        const enable = document.getElementById(`enable_${i}`).checked;
+        const start = document.getElementById(`start_${i}`).value.trim();
+        const stop = document.getElementById(`stop_${i}`).value.trim();
+
+        if (!timeRegex.test(start) || !timeRegex.test(stop)) {
+            alert(`Invalid format on ${dayNames[i]}. Please use HH:MM (e.g., 08:30 or 21:00).`);
+            return;
+        }
+
+        data.push({
+            Enable: enable,
+            StartShow: start,
+            ShowStop: stop
+        });
     }
 
-    data.push({
-      Enable: enable,
-      StartShow: start,
-      ShowStop: stop
-    });
-  }
-
-  try {
-    const r = await fetch("/api/schedule/local", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(data)
-    });
-    const j = await r.json();
-    if (!j.ok) {
-      alert("Error saving schedule: " + (j.error || "Unknown error"));
-      return;
+    try {
+        const r = await fetch("/api/schedule/local", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(data)
+        });
+        const j = await r.json();
+        if (j.status === "success" || j.ok) {
+            alert("Schedule saved and applied successfully.");
+        } else {
+            alert("Save failed: " + (j.message || "Unknown error"));
+        }
+    } catch(e) {
+        alert("Error: Server unreachable.");
     }
-    alert("Schedule saved to Pi and applied.");
-  } catch(e) {
-    console.log("saveSchedule error", e);
-    alert("Failed to save schedule.");
-  }
 }
 
-// Initial load
+// Start
 loadLocal();
 </script>
 
