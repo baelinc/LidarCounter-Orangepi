@@ -1,11 +1,11 @@
 {
-  "serial_port": "/dev/ttyS5",
+  "serial_port": "/dev/serial0",
   "baudrate": 115200,
 
   "database": "cars.db",
 
   "mqtt": {
-    "broker": "localhost",
+    "broker": "",
     "port": 1883,
     "topic": "carcount/car_detect",
     "username": "",
@@ -14,7 +14,7 @@
 
   "http": {
     "host": "0.0.0.0",
-    "port": 80
+    "port": 8080
   },
 
   "detection": {
@@ -30,7 +30,7 @@
     "github_token": ""
   },
   "system_update": {
-    "repo_url": "https://github.com/baelinc/LidarCounter-Orangepi.git",
+    "repo_url": "https://github.com/baelinc/LidarCounter.git",
     "branch": "main"
   }
 }
