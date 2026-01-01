@@ -1,35 +1,63 @@
 #!/bin/bash
 
-PROJECT_DIR="/home/admin/ShowMonLidarCounter"
-BACKUP_PATH="/tmp/config.json.bak"
+# --- Updated paths for Orange Pi Zero 2 ---
+PROJECT_DIR="/root/LidarCounter-Orangepi"
+CONFIG_BACKUP="/tmp/config.json.bak"
+SCHED_BACKUP="/tmp/schedule.json.bak"
 
-echo "--- Starting System Update ---"
+echo "=========================================="
+echo "   Starting Lidar Counter System Update   "
+echo "=========================================="
 
 # 1. Enter directory
-cd $PROJECT_DIR || { echo "Directory not found"; exit 1; }
+if cd "$PROJECT_DIR"; then
+    echo "Current directory: $PROJECT_DIR"
+else
+    echo "ERROR: Directory $PROJECT_DIR not found!"
+    exit 1
+fi
 
-# 2. Backup config.json (The Lifeboat)
+# 2. Backup Local Data (The Lifeboat)
+# We backup config and schedule so local changes aren't lost
 if [ -f "config.json" ]; then
-    echo "Backing up config.json..."
-    cp config.json $BACKUP_PATH
+    echo "-> Backing up config.json..."
+    cp config.json "$CONFIG_BACKUP"
+fi
+
+if [ -f "schedule.json" ]; then
+    echo "-> Backing up schedule.json..."
+    cp schedule.json "$SCHED_BACKUP"
 fi
 
 # 3. Pull from GitHub
-echo "Fetching latest code from GitHub..."
-# This uses the URL already configured in your git remote
+echo "-> Fetching latest code from GitHub..."
+# This force-aligns your local files with the remote repository
 git fetch --all
 git reset --hard origin/main
 
-# 4. Restore config.json
-if [ -f $BACKUP_PATH ]; then
-    echo "Restoring config.json..."
-    cp $BACKUP_PATH config.json
+# 4. Restore Local Data
+if [ -f "$CONFIG_BACKUP" ]; then
+    echo "-> Restoring config.json..."
+    cp "$CONFIG_BACKUP" config.json
 fi
 
-# 5. Restart Services
-echo "Restarting services..."
-sudo systemctl restart ShowMonLidarCounter.service
-sudo systemctl restart LidarCounter.service
+if [ -f "$SCHED_BACKUP" ]; then
+    echo "-> Restoring schedule.json..."
+    cp "$SCHED_BACKUP" schedule.json
+fi
 
-echo "--- Update Complete! ---"
-sudo systemctl status ShowMonLidarCounter.service --no-pager
+# 5. Update Python Dependencies
+# Just in case requirements.txt was changed in the update
+echo "-> Checking for new Python dependencies..."
+./venv/bin/pip install -r requirements.txt --quiet
+
+# 6. Restart Service
+echo "-> Restarting LidarCounter service..."
+systemctl restart LidarCounter.service
+
+echo "=========================================="
+echo "            Update Complete!              "
+echo "=========================================="
+
+# Show status to confirm it's back up
+systemctl status LidarCounter.service --no-pager
