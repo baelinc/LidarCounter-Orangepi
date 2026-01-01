@@ -1,0 +1,24 @@
+[Unit]
+Description=ShowMon Lidar Car Counter
+After=network.target
+
+[Service]
+Type=simple
+
+# --- Absolute paths (do not change) ---
+WorkingDirectory=/home/admin/ShowMonLidarCounter
+ExecStart=/home/admin/ShowMonLidarCounter/venv/bin/python /home/admin/ShowMonLidarCounter/app.py
+
+Restart=always
+RestartSec=5
+
+# Environment
+Environment=FLASK_ENV=production
+Environment=PYTHONUNBUFFERED=1
+
+# User permissions (required for UART)
+User=admin
+Group=admin
+
+[Install]
+WantedBy=multi-user.target
