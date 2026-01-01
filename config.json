@@ -1,36 +1,37 @@
 {
-  "serial_port": "/dev/serial0",
+  "serial_port": "/dev/ttyS5",
   "baudrate": 115200,
-
   "database": "cars.db",
-
+  "http": {
+    "host": "0.0.0.0",
+    "port": 80
+  },
+  
   "mqtt": {
-    "broker": "",
+    "broker": "localhost",
     "port": 1883,
     "topic": "carcount/car_detect",
     "username": "",
     "password": ""
   },
-
-  "http": {
-    "host": "0.0.0.0",
-    "port": 8080
-  },
-
+  
   "detection": {
     "debounce_ms": 200,
+    "min_strength": 100,
     "ignore_zero_distance": true,
-    "min_strength": 0,
     "test_mode": false
   },
-
+  
   "schedule": {
-    "url": "",
-    "check_interval_sec": 1200,
-    "github_token": ""
-  },
-  "system_update": {
-    "repo_url": "https://github.com/baelinc/LidarCounter.git",
-    "branch": "main"
+    "url": "https://raw.githubusercontent.com/YOUR_USER/LidarCounter-Orangepi/main/schedule.json",
+    "github_token": "",
+    "check_interval_sec": 1200
   }
+  
+  "system_update": {
+      "repo_url": "https://github.com/baelinc/LidarCounter-Orangepi.git",
+      "branch": "main",
+      "local_path": "/root/LidarCounter-Orangepi",
+      "service_name": "LidarCounter.service"
+    }
 }
