@@ -1,123 +1,52 @@
 #!/bin/bash
 
-set -e
-
-echo "Installing Lidar Car Counter for Orange Pi Zero 2..."
-
-# -------------------------
-# Path Updates for Orange Pi
-# -------------------------
+# --- 1. Define the correct Orange Pi path ---
 PROJECT_DIR="/root/LidarCounter-Orangepi"
-# We'll use system python site-packages to avoid venv complexity on root
-# but you can keep VENV if you prefer.
-VENV_DIR="$PROJECT_DIR/venv"
 
-# -------------------------
-# Sanity checks
-# -------------------------
+echo "=== Starting Orange Pi Lidar Installation ==="
+
+# --- 2. Create the directory if it doesn't exist ---
 if [ ! -d "$PROJECT_DIR" ]; then
-  echo "ERROR: Project directory not found: $PROJECT_DIR"
-  exit 1
+    echo "Creating project directory..."
+    mkdir -p "$PROJECT_DIR"
 fi
 
-cd "$PROJECT_DIR"
+cd "$PROJECT_DIR" || { echo "Failed to enter directory"; exit 1; }
 
-# -------------------------
-# System packages
-# -------------------------
-sudo apt update
-sudo apt install -y \
-  python3 \
-  python3-pip \
-  python3-venv \
-  python3-serial \
-  python3-requests \
-  python3-flask \
-  paho-mqtt-python \
-  git \
-  ntpsec-ntpdate
+# --- 3. Hardware Setup: Enable UART5 ---
+echo "Enabling UART5 hardware overlay..."
+if ! grep -q "overlays=uart5" /boot/orangepiEnv.txt; then
+    echo "overlays=uart5" >> /boot/orangepiEnv.txt
+    echo "Hardware overlay added. A reboot will be required later."
+fi
 
-# -------------------------
-# Enable UART5 (Orange Pi Specific)
-# -------------------------
-# On Orange Pi, we use /boot/orangepiEnv.txt instead of config.txt
-ENV_CFG="/boot/orangepiEnv.txt"
-UART_REBOOT_REQ=0
+# --- 4. Install System Packages (APT) ---
+echo "Installing system dependencies..."
+apt-get update
+apt-get install -y python3-venv python3-pip python3-dev build-essential git
 
-if [ -f "$ENV_CFG" ]; then
-    if grep -q "uart5" "$ENV_CFG"; then
-        echo "UART5 already enabled in $ENV_CFG"
-    else
-        echo "Enabling UART5 overlay..."
-        # Append uart5 to overlays line or create it
-        if grep -q "overlays=" "$ENV_CFG"; then
-            sudo sed -i '/overlays=/ s/$/ uart5/' "$ENV_CFG"
-        else
-            echo "overlays=uart5" | sudo tee -a "$ENV_CFG"
-        fi
-        UART_REBOOT_REQ=1
-    fi
+# --- 5. Setup Python Virtual Environment ---
+echo "Setting up Virtual Environment..."
+# This avoids the 'Unable to locate package' and 'Managed Environment' errors
+python3 -m venv venv
+
+# --- 6. Install Python Libraries (PIP) ---
+echo "Installing Python requirements..."
+# Ensure requirements.txt uses 'paho-mqtt', NOT 'python3-paho-mqtt'
+./venv/bin/pip install --upgrade pip
+./venv/bin/pip install flask flask-cors pyserial paho-mqtt requests
+
+# --- 7. Install Systemd Service ---
+echo "Installing LidarCounter Service..."
+if [ -f "LidarCounter.service" ]; then
+    cp LidarCounter.service /etc/systemd/system/
+    systemctl daemon-reload
+    systemctl enable LidarCounter.service
+    systemctl restart LidarCounter.service
+    echo "Service installed and started."
 else
-    echo "WARNING: $ENV_CFG not found. Make sure UART5 is enabled manually."
+    echo "ERROR: LidarCounter.service file not found in $PROJECT_DIR"
 fi
 
-# -------------------------
-# Permissions (Running as Root)
-# -------------------------
-# Since you are running as root, we don't need the sudoers lidar file.
-# However, we ensure the service file points to the right user.
-SUDOERS_FILE="/etc/sudoers.d/lidar"
-if [ -f "$SUDOERS_FILE" ]; then
-    sudo rm "$SUDOERS_FILE"
-fi
-
-# -------------------------
-# Python Environment
-# -------------------------
-if [ ! -d "$VENV_DIR" ]; then
-  echo "Creating virtual environment at $VENV_DIR"
-  python3 -m venv "$VENV_DIR"
-fi
-
-source "$VENV_DIR/bin/activate"
-pip install --upgrade pip
-if [ -f "requirements.txt" ]; then
-    pip install -r requirements.txt
-fi
-
-# -------------------------
-# systemd service
-# -------------------------
-SERVICE_FILE="systemd/LidarCounter.service"
-if [ -f "$SERVICE_FILE" ]; then
-  echo "Installing systemd service"
-  # Update the service file paths to /root/ before copying
-  sed -i "s|/home/admin/LidarCounter|$PROJECT_DIR|g" "$SERVICE_FILE"
-  sed -i "s|User=admin|User=root|g" "$SERVICE_FILE"
-  
-  sudo cp "$SERVICE_FILE" /etc/systemd/system/LidarCounter.service
-  sudo systemctl daemon-reload
-  sudo systemctl enable LidarCounter
-  sudo systemctl restart LidarCounter
-else
-  echo "WARNING: systemd/LidarCounter.service not found"
-fi
-
-# -------------------------
-# Final notes
-# -------------------------
-echo ""
-echo "Install complete."
-echo "Web UI: http://localhost:80" 
-echo ""
-
-if [ "$UART_REBOOT_REQ" = "1" ]; then
-  echo "*****************************************************"
-  echo "UART5 OVERLAY WAS ADDED."
-  echo "A REBOOT IS REQUIRED to activate Pins 8 and 10."
-  echo "*****************************************************"
-  read -p "Reboot now? (y/N): " REBOOT
-  if [[ "$REBOOT" =~ ^[Yy]$ ]]; then
-    sudo reboot
-  fi
-fi
+echo "=== Installation Finished ==="
+echo "NOTE: If this is the first time enabling UART5, please type 'reboot' now."
