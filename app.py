@@ -39,8 +39,8 @@ def load_config():
 
 cfg = load_config()
 
-# Extract Vars from Config
-SERIAL_PORT = cfg.get('serial_port', '/dev/ttyS5')
+# Extract Vars from Config - Updated to ttyS1 for UART1 wiring
+SERIAL_PORT = cfg.get('serial_port', '/dev/ttyS1') 
 BAUD_RATE = cfg.get('baudrate', 115200)
 DB_PATH = os.path.join(BASE_DIR, cfg.get('database', 'cars.db'))
 
@@ -51,14 +51,6 @@ MIN_STRENGTH = DETECTION_CFG.get('min_strength', 100)
 
 # MQTT Config
 MQTT_CFG = cfg.get('mqtt', {})
-
-# System Update Config
-UPDATE_CFG = cfg.get('system_update', {
-    "repo_url": "https://github.com/baelinc/LidarCounter-Orangepi.git",
-    "branch": "main",
-    "local_path": BASE_DIR,
-    "service_name": "LidarCounter.service"
-})
 
 # --- DATABASE ENGINE ---
 def get_db_connection():
@@ -101,7 +93,7 @@ def check_schedule():
                     schedule = json.load(f)
                 
                 now = datetime.now()
-                # 0=Mon, 6=Sun in Python; Adjusting to your JSON (0=Sun)
+                # Adjusting to JSON (0=Sun)
                 weekday_index = (now.weekday() + 1) % 7
                 today_sched = schedule[weekday_index]
 
@@ -128,17 +120,27 @@ def check_schedule():
 
 # --- LIDAR SENSOR ENGINE ---
 def lidar_engine():
+    ser = None
     try:
         ser = serial.Serial(SERIAL_PORT, BAUD_RATE, timeout=0.1)
         logger.info(f"Lidar started on {SERIAL_PORT}")
     except Exception as e:
-        logger.error(f"Serial Error: {e}")
-        return
+        logger.error(f"Serial Error on {SERIAL_PORT}: {e}")
+        # We don't exit so Test Mode can still work if enabled
 
     car_on_start_time = None
     
     while True:
-        if ser.in_waiting >= 9:
+        # TEST MODE SIMULATION
+        if state.get("test_mode"):
+            with state_lock:
+                state["current_distance"] = 150
+                state["current_strength"] = 800
+            time.sleep(0.5)
+            continue
+
+        # REAL LIDAR LOGIC
+        if ser and ser.in_waiting >= 9:
             if ser.read() == b'\x59':
                 if ser.read() == b'\x59':
                     data = ser.read(7)
@@ -160,6 +162,8 @@ def lidar_engine():
                     else:
                         car_on_start_time = None
                         with state_lock: state["car_present"] = False
+        else:
+            time.sleep(0.01) # Tiny sleep to prevent CPU spiking
 
 def record_detection(dist, stren):
     try:
@@ -170,7 +174,6 @@ def record_detection(dist, stren):
         cursor.execute("UPDATE metadata SET value = CAST(value AS INTEGER) + 1 WHERE key = 'total_count'")
         conn.commit()
         conn.close()
-        # Trigger MQTT
         threading.Thread(target=mqtt_publish, args=(dist,)).start()
     except Exception as e:
         logger.error(f"DB Error: {e}")
@@ -186,7 +189,7 @@ def mqtt_publish(dist):
         client.publish(MQTT_CFG['topic'], payload)
         client.disconnect()
     except Exception as e:
-        logger.info(f"MQTT Publish skipped/failed: {e}")
+        logger.debug(f"MQTT Publish skipped: {e}")
 
 # --- WEB ROUTES ---
 app = Flask(__name__)
@@ -198,6 +201,17 @@ def index():
 @app.route('/api/status')
 def get_status():
     with state_lock: return jsonify(state)
+
+@app.route('/api/mode', methods=['POST'])
+def update_mode():
+    global state
+    data = request.json
+    with state_lock:
+        if 'test_mode' in data:
+            state['test_mode'] = bool(data['test_mode'])
+        if 'manual_override' in data:
+            state['manual_override'] = bool(data['manual_override'])
+    return jsonify({"status": "success", "state": state})
 
 @app.route('/api/config', methods=['GET', 'POST'])
 def handle_config():
@@ -222,45 +236,22 @@ def get_hourly_stats():
     conn.close()
     return jsonify({"labels": [r[0] for r in rows], "values": [r[1] for r in rows]})
 
-# --- SYSTEM UPDATE LOGIC ---
 @app.route('/run_update', methods=['POST'])
 def run_update():
     upd_cfg = cfg.get("system_update", {})
     repo_path = upd_cfg.get("local_path", BASE_DIR)
     service_name = upd_cfg.get("service_name", "LidarCounter.service")
-
     try:
-        logger.info("Starting System Update...")
         os.chdir(repo_path)
-        
-        # Pull from GitHub
         subprocess.run(['git', 'fetch', '--all'], check=True)
         subprocess.run(['git', 'reset', '--hard', f'origin/{upd_cfg.get("branch", "main")}'], check=True)
-        
-        # Optional: Re-install requirements
-        if os.path.exists('requirements.txt'):
-            subprocess.run(['pip', 'install', '-r', 'requirements.txt'], check=True)
-
-        # Final step: Restart the service
-        logger.info("Update complete. Restarting service.")
         subprocess.Popen(["systemctl", "restart", service_name])
-        return jsonify({'status': 'success', 'message': 'Update applied. Restarting service...'})
+        return jsonify({'status': 'success', 'message': 'Restarting service...'})
     except Exception as e:
-        logger.error(f"Update failed: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
-
-@app.route('/sync_time', methods=['POST'])
-def sync_time():
-    try:
-        subprocess.run(['systemctl', 'stop', 'systemd-timesyncd'], check=True)
-        subprocess.run(['ntpsec-ntpdate', '-u', 'time.google.com'], check=True)
-        subprocess.run(['systemctl', 'start', 'systemd-timesyncd'], check=True)
-        return jsonify({'status': 'success'})
-    except:
-        return jsonify({'status': 'error'}), 500
 
 if __name__ == '__main__':
     init_db()
     threading.Thread(target=lidar_engine, daemon=True).start()
     threading.Thread(target=check_schedule, daemon=True).start()
-    app.run(host=cfg['http']['host'], port=cfg['http']['port'])
+    app.run(host=cfg['http'].get('host', '0.0.0.0'), port=cfg['http'].get('port', 80))
