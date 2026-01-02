@@ -1,5 +1,5 @@
 {
-  "serial_port": "/dev/ttyS2",
+  "serial_port": "/dev/ttyS5",
   "baudrate": 115200,
   "database": "cars.db",
   "http": {
