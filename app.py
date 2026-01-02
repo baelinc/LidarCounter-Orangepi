@@ -39,8 +39,8 @@ def load_config():
 
 cfg = load_config()
 
-# Extract Vars from Config - Updated to ttyS1 for UART1 wiring
-SERIAL_PORT = cfg.get('serial_port', '/dev/ttyS1') 
+# Extract Vars from Config
+SERIAL_PORT = cfg.get('serial_port', '/dev/ttyS2') # Updated to ttyS2 per your wiring
 BAUD_RATE = cfg.get('baudrate', 115200)
 DB_PATH = os.path.join(BASE_DIR, cfg.get('database', 'cars.db'))
 
@@ -93,7 +93,6 @@ def check_schedule():
                     schedule = json.load(f)
                 
                 now = datetime.now()
-                # Adjusting to JSON (0=Sun)
                 weekday_index = (now.weekday() + 1) % 7
                 today_sched = schedule[weekday_index]
 
@@ -106,7 +105,7 @@ def check_schedule():
 
                     if start_t <= stop_t:
                         new_status = start_t <= now_t <= stop_t
-                    else: # Crosses Midnight
+                    else:
                         new_status = now_t >= start_t or now_t <= stop_t
 
                 with state_lock:
@@ -126,20 +125,11 @@ def lidar_engine():
         logger.info(f"Lidar started on {SERIAL_PORT}")
     except Exception as e:
         logger.error(f"Serial Error on {SERIAL_PORT}: {e}")
-        # We don't exit so Test Mode can still work if enabled
 
     car_on_start_time = None
     
     while True:
-        # TEST MODE SIMULATION
-        if state.get("test_mode"):
-            with state_lock:
-                state["current_distance"] = 150
-                state["current_strength"] = 800
-            time.sleep(0.5)
-            continue
-
-        # REAL LIDAR LOGIC
+        # REAL LIDAR LOGIC (Even in Test Mode, we show real data)
         if ser and ser.in_waiting >= 9:
             if ser.read() == b'\x59':
                 if ser.read() == b'\x59':
@@ -150,20 +140,30 @@ def lidar_engine():
                     with state_lock:
                         state["current_distance"] = dist
                         state["current_strength"] = stren
-                        active = state["is_active_by_schedule"] or state["manual_override"]
+                        
+                        # LOGIC: Override schedule if manual_override is ON
+                        is_active = state["is_active_by_schedule"] or state["manual_override"]
+                        is_test = state["test_mode"]
 
                     if dist > 0 and stren >= MIN_STRENGTH:
                         if car_on_start_time is None: car_on_start_time = time.time()
                         
                         duration_ms = (time.time() - car_on_start_time) * 1000
                         if duration_ms >= DEBOUNCE_MS and not state["car_present"]:
-                            with state_lock: state["car_present"] = True
-                            if active: record_detection(dist, stren)
+                            with state_lock: 
+                                state["car_present"] = True
+                            
+                            # RECORDING LOGIC:
+                            # Only save if the system is Active AND we are NOT in Test Mode
+                            if is_active and not is_test:
+                                record_detection(dist, stren)
+                            elif is_test:
+                                logger.info(f"LIVE TEST: Detection at {dist}cm (Not Recorded)")
                     else:
                         car_on_start_time = None
                         with state_lock: state["car_present"] = False
         else:
-            time.sleep(0.01) # Tiny sleep to prevent CPU spiking
+            time.sleep(0.01)
 
 def record_detection(dist, stren):
     try:
@@ -175,6 +175,7 @@ def record_detection(dist, stren):
         conn.commit()
         conn.close()
         threading.Thread(target=mqtt_publish, args=(dist,)).start()
+        logger.info(f"RECORDED: Car detected at {dist}cm")
     except Exception as e:
         logger.error(f"DB Error: {e}")
 
@@ -189,7 +190,7 @@ def mqtt_publish(dist):
         client.publish(MQTT_CFG['topic'], payload)
         client.disconnect()
     except Exception as e:
-        logger.debug(f"MQTT Publish skipped: {e}")
+        pass
 
 # --- WEB ROUTES ---
 app = Flask(__name__)
@@ -239,15 +240,11 @@ def get_hourly_stats():
 @app.route('/sync_time', methods=['POST'])
 def sync_time():
     try:
-        # Stop the background sync to avoid conflicts
         subprocess.run(['systemctl', 'stop', 'systemd-timesyncd'], check=True)
-        # Force update from Google's time servers
         subprocess.run(['ntpsec-ntpdate', '-u', 'time.google.com'], check=True)
-        # Restart background sync
         subprocess.run(['systemctl', 'start', 'systemd-timesyncd'], check=True)
         return jsonify({'status': 'success'})
     except Exception as e:
-        logger.error(f"Time sync failed: {e}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
 @app.route('/run_update', methods=['POST'])
@@ -282,8 +279,6 @@ def handle_local_schedule():
             return jsonify({"status": "success", "ok": True})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
-    
-    # GET: Load the file
     if os.path.exists(SCHEDULE_FILE):
         with open(SCHEDULE_FILE, 'r') as f:
             return jsonify(json.load(f))
@@ -292,19 +287,16 @@ def handle_local_schedule():
 @app.route('/api/schedule/refresh', methods=['POST'])
 def refresh_schedule_from_github():
     try:
-        # Get the URL from your config
         remote_url = cfg.get('schedule', {}).get('url')
         if not remote_url:
             return jsonify({"status": "error", "message": "No GitHub URL in config"}), 400
-            
         response = requests.get(remote_url, timeout=10)
         if response.status_code == 200:
             new_data = response.json()
             with open(SCHEDULE_FILE, 'w') as f:
                 json.dump(new_data, f, indent=4)
             return jsonify({"status": "success", "ok": True})
-        else:
-            return jsonify({"status": "error", "message": f"GitHub returned {response.status_code}"}), 400
+        return jsonify({"status": "error", "message": f"GitHub returned {response.status_code}"}), 400
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
@@ -312,4 +304,7 @@ if __name__ == '__main__':
     init_db()
     threading.Thread(target=lidar_engine, daemon=True).start()
     threading.Thread(target=check_schedule, daemon=True).start()
-    app.run(host=cfg['http'].get('host', '0.0.0.0'), port=cfg['http'].get('port', 80))
+    
+    # Use safer access for host/port configuration
+    http_cfg = cfg.get('http', {})
+    app.run(host=http_cfg.get('host', '0.0.0.0'), port=http_cfg.get('port', 80))
