@@ -236,6 +236,20 @@ def get_hourly_stats():
     conn.close()
     return jsonify({"labels": [r[0] for r in rows], "values": [r[1] for r in rows]})
 
+@app.route('/sync_time', methods=['POST'])
+def sync_time():
+    try:
+        # Stop the background sync to avoid conflicts
+        subprocess.run(['systemctl', 'stop', 'systemd-timesyncd'], check=True)
+        # Force update from Google's time servers
+        subprocess.run(['ntpsec-ntpdate', '-u', 'time.google.com'], check=True)
+        # Restart background sync
+        subprocess.run(['systemctl', 'start', 'systemd-timesyncd'], check=True)
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        logger.error(f"Time sync failed: {e}")
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
 @app.route('/run_update', methods=['POST'])
 def run_update():
     upd_cfg = cfg.get("system_update", {})
