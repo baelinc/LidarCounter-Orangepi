@@ -235,15 +235,29 @@ function updateChart(labels, data) {
 }
 
 async function toggleMode(key) {
+    // Current value from the state we already have
     const newVal = !currentLocalState[key];
+    
+    console.log(`Attempting to toggle ${key} to ${newVal}`);
+
     try {
-        await fetch("/api/config", {
+        const response = await fetch("/api/mode", { // Ensure this matches your app.py route
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ [key]: newVal })
         });
-        loadAllData();
-    } catch(e) { alert("Failed to toggle mode."); }
+
+        if (response.ok) {
+            console.log("Toggle successful");
+            loadAllData(); // Refresh the UI immediately
+        } else {
+            const errorData = await response.json();
+            alert("Error: " + (errorData.message || "Failed to update mode"));
+        }
+    } catch(e) {
+        console.error("Connection error:", e);
+        alert("Could not connect to the Pi to change mode.");
+    }
 }
 
 function clearData() {
