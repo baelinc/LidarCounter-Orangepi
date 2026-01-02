@@ -38,14 +38,17 @@ echo "Installing Python requirements..."
 
 # --- 7. Install Systemd Service ---
 echo "Installing LidarCounter Service..."
-if [ -f "LidarCounter.service" ]; then
-    cp LidarCounter.service /etc/systemd/system/
+
+# Check the systemd subfolder instead of the root folder
+if [ -f "systemd/LidarCounter.service" ]; then
+    cp systemd/LidarCounter.service /etc/systemd/system/
     systemctl daemon-reload
     systemctl enable LidarCounter.service
     systemctl restart LidarCounter.service
-    echo "Service installed and started."
+    echo "Service installed and started from systemd folder."
 else
-    echo "ERROR: LidarCounter.service file not found in $PROJECT_DIR"
+    echo "ERROR: Service file NOT found at $PROJECT_DIR/systemd/LidarCounter.service"
+    exit 1
 fi
 
 echo "=== Installation Finished ==="
