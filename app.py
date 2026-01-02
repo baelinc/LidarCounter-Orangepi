@@ -264,6 +264,31 @@ def run_update():
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
+@app.route('/config.html')
+def config_page():
+    return render_template('config.html')
+
+@app.route('/schedule.html')
+def schedule_page():
+    return render_template('schedule.html')
+
+@app.route('/api/schedule', methods=['GET', 'POST'])
+def handle_schedule():
+    if request.method == 'POST':
+        try:
+            new_schedule = request.json
+            with open(SCHEDULE_FILE, 'w') as f:
+                json.dump(new_schedule, f, indent=4)
+            return jsonify({"status": "success"})
+        except Exception as e:
+            return jsonify({"status": "error", "message": str(e)}), 500
+    
+    # GET request: Load the file
+    if os.path.exists(SCHEDULE_FILE):
+        with open(SCHEDULE_FILE, 'r') as f:
+            return jsonify(json.load(f))
+    return jsonify({"error": "Schedule file not found"}), 404
+
 if __name__ == '__main__':
     init_db()
     threading.Thread(target=lidar_engine, daemon=True).start()
