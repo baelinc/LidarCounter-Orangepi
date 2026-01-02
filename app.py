@@ -272,22 +272,41 @@ def config_page():
 def schedule_page():
     return render_template('schedule.html')
 
-@app.route('/api/schedule', methods=['GET', 'POST'])
-def handle_schedule():
+@app.route('/api/schedule/local', methods=['GET', 'POST'])
+def handle_local_schedule():
     if request.method == 'POST':
         try:
             new_schedule = request.json
             with open(SCHEDULE_FILE, 'w') as f:
                 json.dump(new_schedule, f, indent=4)
-            return jsonify({"status": "success"})
+            return jsonify({"status": "success", "ok": True})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 500
     
-    # GET request: Load the file
+    # GET: Load the file
     if os.path.exists(SCHEDULE_FILE):
         with open(SCHEDULE_FILE, 'r') as f:
             return jsonify(json.load(f))
-    return jsonify({"error": "Schedule file not found"}), 404
+    return jsonify([]), 200
+
+@app.route('/api/schedule/refresh', methods=['POST'])
+def refresh_schedule_from_github():
+    try:
+        # Get the URL from your config
+        remote_url = cfg.get('schedule', {}).get('url')
+        if not remote_url:
+            return jsonify({"status": "error", "message": "No GitHub URL in config"}), 400
+            
+        response = requests.get(remote_url, timeout=10)
+        if response.status_code == 200:
+            new_data = response.json()
+            with open(SCHEDULE_FILE, 'w') as f:
+                json.dump(new_data, f, indent=4)
+            return jsonify({"status": "success", "ok": True})
+        else:
+            return jsonify({"status": "error", "message": f"GitHub returned {response.status_code}"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 if __name__ == '__main__':
     init_db()
